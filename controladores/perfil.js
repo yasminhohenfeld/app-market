@@ -1,19 +1,20 @@
 const db = require('../databases');
 const sc = require ('../security');
+const profileSchemas = require('../validations/profileSchemas')
 
-const getperfil = (req, res) => {
-    
+const getperfil = async (req, res) => {
+
+    try {   
+
     if(req.headers.authorization === undefined){
-        res.send ({msg: "Ô MEU SENHOR, INSIRA UM TOKEN, QUERIDO!!!!"})
-        return
+        return res.status(400).send ({msg: "Insira um token para continuar!"})      
     }
+
     const user = sc.decode(req.headers.authorization)
 
     if (user === null){
-        res.send ({msg: "Token inválido"})
-        return
+        return res.status(400).send ({msg: "Token inválido"})
     }
-
     
     const resposta = {
         "id": user.id,
@@ -21,46 +22,45 @@ const getperfil = (req, res) => {
         "email": user.email,
         "nome_loja": user.nome_loja
     }
+    return res.send (resposta)
 
-    res.send (resposta)
+    }catch (error){
+        return res.status(500).send(error.message)
+    } 
   
 }
 
 const putperfil = async(req, res) =>{
+    try {
 
+        await profileSchemas.validate(req.body)
 
-    if ((req.body.nome === undefined) ||
-        (req.body.email === undefined) ||
-        (req.body.senha === undefined) ||
-        (req.body.nome_loja === undefined)) {
-        res.send ("Insira os campos obrigatórios, nome, email. senha e nome_loja")
-        return
-    } 
-
-    const userToken = sc.decode(req.headers.authorization)
-    if (userToken === null){
-        res.send ("Token inválido")
-        return
-    }
+        const userToken = sc.decode(req.headers.authorization)
+        if (userToken === null){
+            res.send ("Token inválido")
+            return
+        }
+        
+        const userSelect = await db.selectUser(req.body.email)
     
-    const userSelect = await db.selectUser(req.body.email)
-   
-    if ((userSelect !== null) && (userToken.id !== userSelect.id)){
-        res.send ({msg:"Este correo electronico es de otra persona, HOMBREEE!"})
-        return
+        if ((userSelect !== null) && (userToken.id !== userSelect.id)){
+            res.status(400).send ({msg:"Este correo electronico es de otra persona!"})
+            return
 
+        }
+
+        await db.updateUser(req.body.nome, req.body.email, req.body.senha, req.body.nome_loja, userToken.id)
+        console.log (db.updateUser)
+
+        res.status(200).send({
+            "nome": req.body.nome, 
+            "email": req.body.email,
+            "senha": req.body.senha,
+            "nome_loja": req.body.nome_loja
+        })
+    } catch (error){
+        return res.status(500).json(error.message)
     }
-
-    await db.updateUser(req.body.nome, req.body.email, req.body.senha, req.body.nome_loja, userToken.id)
-    console.log (db.updateUser)
-
-    res.send({
-        "nome": req.body.nome, 
-        "email": req.body.email,
-        "senha": req.body.senha,
-        "nome_loja": req.body.nome_loja
-    })
-
 }
 
 
